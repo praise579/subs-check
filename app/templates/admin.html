@@ -213,6 +213,87 @@
         }
         .success-highlight { color: var(--success-text); font-weight: 700; animation: pulse 1.5s infinite; }
 
+        /* 配置面板的两个视图：基础设置（表单）与高级设置（YAML）。
+           表单只托管自己那几个键，其余内容通过后端键级写回原样保留。 */
+        .cfg-tabs {
+            display: inline-flex;
+            flex: none;
+            gap: 2px;
+            padding: 2px;
+            border-radius: var(--radius-sm);
+            background-color: var(--surface-2);
+        }
+        .cfg-tab {
+            height: 26px;
+            padding: 0 12px;
+            border: 0;
+            border-radius: 6px;
+            background: transparent;
+            color: var(--text-2);
+            font-size: 12.5px;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+        .cfg-tab:hover { color: var(--text); }
+        .cfg-tab[aria-selected="true"] {
+            background-color: var(--surface);
+            color: var(--text);
+            box-shadow: var(--shadow-sm);
+        }
+        .cfg-spacer { flex: 1 1 auto; }
+
+        .basic-view { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 0 16px 12px; }
+        .basic-view[hidden] { display: none; }
+        .field { padding: 14px 0; border-top: 1px solid var(--border); }
+        .field:first-child { border-top: 0; }
+        .field > label {
+            display: block;
+            margin-bottom: 8px;
+            color: var(--text);
+            font-size: 13px;
+            font-weight: 600;
+        }
+        .row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+        .row .form-control, .row .form-select { font-size: 13px; }
+        .suffix { color: var(--text-2); font-size: 12.5px; white-space: nowrap; }
+        .hint { margin-top: 6px; color: var(--text-2); font-size: 12px; line-height: 1.55; }
+        .checks { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 10px; }
+        .checks label {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            color: var(--text-2);
+            font-size: 12.5px;
+            font-weight: 400;
+        }
+        .switch { display: inline-flex; align-items: center; gap: 6px; color: var(--text-2); font-size: 12.5px; font-weight: 500; }
+        .w-num { width: 88px; }
+        .w-port { width: 110px; }
+        .basic-view .mono-input { font-family: var(--mono); font-size: 12.5px; }
+        .basic-note {
+            display: none;
+            margin: 12px 0 0;
+            padding: 10px 12px;
+            border-radius: var(--radius-sm);
+            background-color: var(--warning-soft);
+            color: var(--warning-text);
+            font-size: 12.5px;
+        }
+        .basic-note.show { display: block; }
+        .basic-foot {
+            display: flex;
+            flex: none;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px 12px;
+            padding: 10px 16px;
+            border-top: 1px solid var(--border);
+        }
+        .basic-foot[hidden] { display: none; }
+        .save-hint { color: var(--text-2); font-size: 12px; }
+        .save-hint.warn { color: var(--warning-text); }
+        .save-hint.error { color: var(--danger-text); }
+
         /* Editor: #editor is absolutely positioned so Monaco measures a definite size on init */
         .editor-wrapper { position: relative; flex: 1 1 auto; min-height: 0; }
         #editor { position: absolute; inset: 0; }
@@ -353,8 +434,13 @@
 
             <section class="panel">
                 <div class="panel-header">
-                    <h2 class="panel-title"><i class="bi bi-sliders"></i>配置编辑器</h2>
-                    <div class="panel-actions">
+                    <h2 class="panel-title"><i class="bi bi-sliders"></i>配置</h2>
+                    <div class="cfg-tabs" role="tablist">
+                        <button class="cfg-tab" type="button" role="tab" data-view="basic" aria-selected="true">基础设置</button>
+                        <button class="cfg-tab" type="button" role="tab" data-view="yaml" aria-selected="false">高级设置</button>
+                    </div>
+                    <div class="cfg-spacer"></div>
+                    <div class="panel-actions" id="yamlActions" hidden>
                         <button id="toggleConfig" class="icon-btn bordered" type="button" title="显示/隐藏配置">
                             <i class="bi bi-eye-slash"></i>
                         </button>
@@ -366,7 +452,150 @@
                         </button>
                     </div>
                 </div>
-                <div class="editor-wrapper">
+
+                <div id="basicView" class="basic-view">
+                    <div class="field">
+                        <label for="fSubUrls">订阅链接</label>
+                        <textarea id="fSubUrls" class="form-control form-control-sm mono-input" rows="4" spellcheck="false" placeholder="每行一条订阅链接"></textarea>
+                        <div class="hint">可以粘贴多条；一条都拉不到时本轮会直接失败，并保留上一轮结果。</div>
+                    </div>
+
+                    <div class="field">
+                        <label for="fInterval">检测间隔</label>
+                        <div class="row">
+                            <input type="number" id="fInterval" class="form-control form-control-sm w-num" min="1">
+                            <span class="suffix">分钟</span>
+                        </div>
+                        <div class="hint">间隔小于本轮耗时会排队等待，不会并发跑两轮。</div>
+                    </div>
+
+                    <div class="field">
+                        <label for="fConcurrent">并发</label>
+                        <div class="row">
+                            <input type="number" id="fConcurrent" class="form-control form-control-sm w-num" min="1">
+                            <span class="suffix">测活线程</span>
+                            <span class="suffix">·</span>
+                            <span class="suffix">超时</span>
+                            <input type="number" id="fTimeout" class="form-control form-control-sm w-num" min="0">
+                            <span class="suffix">毫秒</span>
+                        </div>
+                        <div class="hint">并发越高越快，也越容易被机场限速；超时是节点能容忍的最大延迟。</div>
+                    </div>
+
+                    <div class="field">
+                        <label for="fSpeedOn">测速</label>
+                        <div class="row">
+                            <label class="switch"><input type="checkbox" id="fSpeedOn">开启</label>
+                            <span class="suffix">最低速度</span>
+                            <input type="number" id="fMinSpeed" class="form-control form-control-sm w-num" min="0">
+                            <span class="suffix">KB/s</span>
+                        </div>
+                        <div class="hint">关掉测速后本轮快很多，但输出里没有速度标签，也无法按速度筛节点。测速地址在高级设置里改。</div>
+                    </div>
+
+                    <div class="field">
+                        <label for="fMediaOn">解锁检测</label>
+                        <div class="row"><label class="switch"><input type="checkbox" id="fMediaOn">开启</label></div>
+                        <div class="checks" id="fPlatforms">
+                            <label><input type="checkbox" value="openai">OpenAI</label>
+                            <label><input type="checkbox" value="youtube">YouTube</label>
+                            <label><input type="checkbox" value="netflix">Netflix</label>
+                            <label><input type="checkbox" value="disney">Disney+</label>
+                            <label><input type="checkbox" value="gemini">Gemini</label>
+                            <label><input type="checkbox" value="claude">Claude</label>
+                            <label><input type="checkbox" value="spotify">Spotify</label>
+                            <label><input type="checkbox" value="tiktok">TikTok</label>
+                            <label><input type="checkbox" value="iprisk">IP 风险</label>
+                        </div>
+                        <div class="hint">勾选越多越慢；IP 风险会给出百分比，可用于名称筛选。</div>
+                    </div>
+
+                    <div class="field">
+                        <label for="fSaveMethod">结果保存到</label>
+                        <div class="row">
+                            <select id="fSaveMethod" class="form-select form-select-sm" style="width: 260px;">
+                                <option value="local">本地目录</option>
+                                <option value="r2">Cloudflare R2（经 Worker 上传）</option>
+                                <option value="gist">GitHub Gist</option>
+                                <option value="webdav">WebDAV</option>
+                                <option value="s3">S3 / MinIO</option>
+                            </select>
+                        </div>
+
+                        <div class="row" data-cred="local" style="margin-top: 10px;">
+                            <span class="suffix">输出目录</span>
+                            <input type="text" id="fOutputDir" class="form-control form-control-sm mono-input" style="width: 200px;">
+                        </div>
+
+                        <div class="row" data-cred="r2" style="margin-top: 10px;" hidden>
+                            <span class="suffix">上传地址</span>
+                            <input type="text" id="fWorkerURL" class="form-control form-control-sm mono-input" style="width: 240px;" placeholder="https://example.workers.dev">
+                            <span class="suffix">令牌</span>
+                            <input type="password" id="fWorkerToken" class="form-control form-control-sm mono-input" style="width: 160px;" autocomplete="off">
+                        </div>
+                        <div class="hint" data-cred="r2" hidden>R2 走 Worker 中转，不需要填 R2 的 Access Key / Secret Key。</div>
+
+                        <div class="row" data-cred="gist" style="margin-top: 10px;" hidden>
+                            <span class="suffix">Gist ID</span>
+                            <input type="text" id="fGistID" class="form-control form-control-sm mono-input" style="width: 200px;" placeholder="留空会自动创建">
+                            <span class="suffix">Token</span>
+                            <input type="password" id="fGithubToken" class="form-control form-control-sm mono-input" style="width: 190px;" autocomplete="off" placeholder="ghp_…">
+                        </div>
+
+                        <div class="row" data-cred="webdav" style="margin-top: 10px;" hidden>
+                            <span class="suffix">地址</span>
+                            <input type="text" id="fWebdavURL" class="form-control form-control-sm mono-input" style="width: 230px;">
+                            <span class="suffix">账号</span>
+                            <input type="text" id="fWebdavUser" class="form-control form-control-sm mono-input" style="width: 120px;">
+                            <span class="suffix">密码</span>
+                            <input type="password" id="fWebdavPass" class="form-control form-control-sm mono-input" style="width: 120px;" autocomplete="off">
+                        </div>
+
+                        <div class="row" data-cred="s3" style="margin-top: 10px;" hidden>
+                            <span class="suffix">Endpoint</span>
+                            <input type="text" id="fS3Endpoint" class="form-control form-control-sm mono-input" style="width: 170px;">
+                            <span class="suffix">Access ID</span>
+                            <input type="text" id="fS3AccessID" class="form-control form-control-sm mono-input" style="width: 130px;">
+                            <span class="suffix">Secret</span>
+                            <input type="password" id="fS3Secret" class="form-control form-control-sm mono-input" style="width: 130px;" autocomplete="off">
+                        </div>
+                        <div class="row" data-cred="s3" style="margin-top: 10px;" hidden>
+                            <span class="suffix">Bucket</span>
+                            <input type="text" id="fS3Bucket" class="form-control form-control-sm mono-input" style="width: 130px;">
+                            <label class="switch"><input type="checkbox" id="fS3SSL">SSL</label>
+                        </div>
+                        <div class="hint" data-cred="local">同时会在这个目录起订阅服务。</div>
+                    </div>
+
+                    <div class="field">
+                        <label for="fRecipientUrls">通知</label>
+                        <textarea id="fRecipientUrls" class="form-control form-control-sm mono-input" rows="2" spellcheck="false" placeholder="tgram://… 或 dingtalk://…，每行一条"></textarea>
+                        <div class="hint">留空表示不推送通知。</div>
+                    </div>
+
+                    <div class="field">
+                        <label for="fListenPort">面板</label>
+                        <div class="row">
+                            <span class="suffix">端口</span>
+                            <input type="text" id="fListenPort" class="form-control form-control-sm mono-input w-port">
+                            <span class="suffix">API 密钥</span>
+                            <input type="text" id="fApiKeyValue" class="form-control form-control-sm mono-input" style="width: 170px;" autocomplete="off">
+                        </div>
+                        <div class="hint">这两项需要重启程序才生效。</div>
+                    </div>
+
+                    <div class="basic-note" id="basicNote"></div>
+                </div>
+
+                <div class="basic-foot" id="basicFoot">
+                    <button id="saveBasic" class="btn btn-primary btn-sm" type="button">
+                        <i class="bi bi-save"></i>保存
+                    </button>
+                    <button id="resetBasic" class="btn btn-ghost btn-sm" type="button">放弃修改</button>
+                    <span class="save-hint" id="saveHint">只改写上面这些键，注释与其它键原样保留。</span>
+                </div>
+
+                <div class="editor-wrapper" id="yamlView" hidden>
                     <div id="editor"></div>
                     <div id="editorOverlay" class="editor-overlay">
                         <div class="editor-overlay-message">
@@ -413,6 +642,78 @@
             statusIcon: document.getElementById('statusIcon'),
             statusText: document.getElementById('nextCheckTime'),
             versionInfo: document.getElementById('versionInfo'),
+        };
+
+        // ---- 基础设置 ----
+        // 表单只托管下面这些键（见 docs/adr/0001）；提交时也只发改动过的键，
+        // 其余内容（注释、程序不认识的键、键顺序）由后端键级写回原样保留。
+        const BASIC = {
+            subUrls: document.getElementById('fSubUrls'),
+            interval: document.getElementById('fInterval'),
+            concurrent: document.getElementById('fConcurrent'),
+            timeout: document.getElementById('fTimeout'),
+            speedOn: document.getElementById('fSpeedOn'),
+            minSpeed: document.getElementById('fMinSpeed'),
+            mediaOn: document.getElementById('fMediaOn'),
+            platforms: document.getElementById('fPlatforms'),
+            saveMethod: document.getElementById('fSaveMethod'),
+            outputDir: document.getElementById('fOutputDir'),
+            workerURL: document.getElementById('fWorkerURL'),
+            workerToken: document.getElementById('fWorkerToken'),
+            gistID: document.getElementById('fGistID'),
+            githubToken: document.getElementById('fGithubToken'),
+            webdavURL: document.getElementById('fWebdavURL'),
+            webdavUser: document.getElementById('fWebdavUser'),
+            webdavPass: document.getElementById('fWebdavPass'),
+            s3Endpoint: document.getElementById('fS3Endpoint'),
+            s3AccessID: document.getElementById('fS3AccessID'),
+            s3Secret: document.getElementById('fS3Secret'),
+            s3Bucket: document.getElementById('fS3Bucket'),
+            s3SSL: document.getElementById('fS3SSL'),
+            recipientUrls: document.getElementById('fRecipientUrls'),
+            listenPort: document.getElementById('fListenPort'),
+            apiKeyValue: document.getElementById('fApiKeyValue'),
+            note: document.getElementById('basicNote'),
+            saveBtn: document.getElementById('saveBasic'),
+            resetBtn: document.getElementById('resetBasic'),
+            saveHint: document.getElementById('saveHint'),
+            foot: document.getElementById('basicFoot'),
+            view: document.getElementById('basicView'),
+            yamlView: document.getElementById('yamlView'),
+            yamlActions: document.getElementById('yamlActions'),
+        };
+
+        // 回填时那份 values，用来算"用户到底改了哪几项"。
+        let loadedValues = {};
+        // 关掉测速后要记得原来的地址，重新打开时才能还原。
+        let speedTestUrl = '';
+
+        const KEY_LABELS = {
+            'sub-urls': '订阅链接',
+            'check-interval': '检测间隔',
+            'concurrent': '并发',
+            'timeout': '超时',
+            'speed-test-url': '测速开关',
+            'min-speed': '最低速度',
+            'media-check': '解锁检测',
+            'platforms': '解锁平台',
+            'save-method': '结果保存到',
+            'output-dir': '输出目录',
+            'worker-url': 'R2 上传地址',
+            'worker-token': 'R2 令牌',
+            'github-gist-id': 'Gist ID',
+            'github-token': 'GitHub Token',
+            'webdav-url': 'WebDAV 地址',
+            'webdav-username': 'WebDAV 账号',
+            'webdav-password': 'WebDAV 密码',
+            's3-endpoint': 'S3 地址',
+            's3-access-id': 'S3 Access ID',
+            's3-secret-key': 'S3 Secret',
+            's3-bucket': 'S3 Bucket',
+            's3-use-ssl': 'S3 SSL',
+            'recipient-url': '通知渠道',
+            'listen-port': '面板端口',
+            'api-key': 'API 密钥',
         };
 
         // 初始化API密钥
@@ -556,13 +857,251 @@
                 return response.json();
             })
             .then(data => {
-                if (editor && data) editor.setValue(data.content);
+                if (editor && data) editor.setValue(data.content || '');
+                if (data) fillBasic(data.values);
                 return data;
             })
             .catch(error => {
                 console.error('加载配置失败:', error);
             });
         }
+
+        // 把配置值回填到基础设置表单。values 为空说明 YAML 坏了，
+        // 表单置灰，让用户先去高级设置里把文件救回来。
+        function fillBasic(values) {
+            const v = values && typeof values === 'object' ? values : null;
+            loadedValues = v || {};
+            speedTestUrl = typeof loadedValues['speed-test-url'] === 'string' ? loadedValues['speed-test-url'] : '';
+
+            const text = (key) => (loadedValues[key] == null ? '' : String(loadedValues[key]));
+            const num = (key) => (loadedValues[key] == null ? '' : String(loadedValues[key]));
+            const list = (key) => (Array.isArray(loadedValues[key]) ? loadedValues[key] : []);
+
+            BASIC.subUrls.value = list('sub-urls').join('\n');
+            BASIC.interval.value = num('check-interval');
+            BASIC.concurrent.value = num('concurrent');
+            BASIC.timeout.value = num('timeout');
+            BASIC.speedOn.checked = speedTestUrl !== '';
+            BASIC.minSpeed.value = num('min-speed');
+            BASIC.mediaOn.checked = loadedValues['media-check'] === true;
+            BASIC.minSpeed.disabled = !BASIC.speedOn.checked;
+
+            const platforms = list('platforms').map(String);
+            BASIC.platforms.querySelectorAll('input[type=checkbox]').forEach(box => {
+                box.checked = platforms.includes(box.value);
+            });
+
+            BASIC.saveMethod.value = text('save-method') || 'local';
+            // 文件里没写这一项时，生效值就是默认的本地目录；记成"没改"，别平白添一行。
+            if (loadedValues['save-method'] == null) loadedValues['save-method'] = 'local';
+            BASIC.outputDir.value = text('output-dir');
+            BASIC.workerURL.value = text('worker-url');
+            BASIC.workerToken.value = text('worker-token');
+            BASIC.gistID.value = text('github-gist-id');
+            BASIC.githubToken.value = text('github-token');
+            BASIC.webdavURL.value = text('webdav-url');
+            BASIC.webdavUser.value = text('webdav-username');
+            BASIC.webdavPass.value = text('webdav-password');
+            BASIC.s3Endpoint.value = text('s3-endpoint');
+            BASIC.s3AccessID.value = text('s3-access-id');
+            BASIC.s3Secret.value = text('s3-secret-key');
+            BASIC.s3Bucket.value = text('s3-bucket');
+            BASIC.s3SSL.checked = loadedValues['s3-use-ssl'] === true;
+
+            BASIC.recipientUrls.value = list('recipient-url').join('\n');
+            BASIC.listenPort.value = text('listen-port');
+            BASIC.apiKeyValue.value = text('api-key');
+
+            syncCredPanels();
+            setFormEnabled(v !== null);
+            if (v === null) {
+                BASIC.note.textContent = '这份配置解析不了，基础设置暂时不可用。请到「高级设置」里修好 YAML 再来。';
+                BASIC.note.classList.add('show');
+            } else {
+                BASIC.note.classList.remove('show');
+            }
+        }
+
+        // 保存目标决定显示哪组凭据字段。
+        function syncCredPanels() {
+            const method = BASIC.saveMethod.value;
+            document.querySelectorAll('#basicView [data-cred]').forEach(el => {
+                el.hidden = el.dataset.cred !== method;
+            });
+        }
+
+        function setFormEnabled(enabled) {
+            BASIC.view.querySelectorAll('input, select, textarea').forEach(el => {
+                el.disabled = !enabled;
+            });
+            BASIC.saveBtn.disabled = !enabled;
+            BASIC.resetBtn.disabled = !enabled;
+            if (enabled) BASIC.minSpeed.disabled = !BASIC.speedOn.checked;
+        }
+
+        function linesOf(el) {
+            return el.value.split('\n').map(s => s.trim()).filter(Boolean);
+        }
+
+        // 空数字框当作"删掉这个键"，与后端的 nil 语义一致。
+        function numberOf(el) {
+            const raw = el.value.trim();
+            if (raw === '') return null;
+            const n = Number(raw);
+            return Number.isFinite(n) ? n : null;
+        }
+
+        // 表单当前的全量快照（键名与 config.yaml 一致）。
+        function collectBasic() {
+            const platforms = Array.from(BASIC.platforms.querySelectorAll('input:checked')).map(b => b.value);
+            return {
+                'sub-urls': linesOf(BASIC.subUrls),
+                'check-interval': numberOf(BASIC.interval),
+                'concurrent': numberOf(BASIC.concurrent),
+                'timeout': numberOf(BASIC.timeout),
+                'speed-test-url': BASIC.speedOn.checked ? speedTestUrl : '',
+                'min-speed': numberOf(BASIC.minSpeed),
+                'media-check': BASIC.mediaOn.checked,
+                'platforms': platforms,
+                'save-method': BASIC.saveMethod.value,
+                'output-dir': BASIC.outputDir.value.trim(),
+                'worker-url': BASIC.workerURL.value.trim(),
+                'worker-token': BASIC.workerToken.value.trim(),
+                'github-gist-id': BASIC.gistID.value.trim(),
+                'github-token': BASIC.githubToken.value.trim(),
+                'webdav-url': BASIC.webdavURL.value.trim(),
+                'webdav-username': BASIC.webdavUser.value.trim(),
+                'webdav-password': BASIC.webdavPass.value.trim(),
+                's3-endpoint': BASIC.s3Endpoint.value.trim(),
+                's3-access-id': BASIC.s3AccessID.value.trim(),
+                's3-secret-key': BASIC.s3Secret.value.trim(),
+                's3-bucket': BASIC.s3Bucket.value.trim(),
+                's3-use-ssl': BASIC.s3SSL.checked,
+                'recipient-url': linesOf(BASIC.recipientUrls),
+                'listen-port': BASIC.listenPort.value.trim(),
+                'api-key': BASIC.apiKeyValue.value.trim(),
+            };
+        }
+
+        // 抹平"YAML 解析出来的"与"表单收集的"两种写法，再比较。
+        // 空值一律归成 null（等于文件里没这个键），空的 false 与空列表同理，
+        // 否则"没改过"的开关会被当成改动写回文件。
+        function basicValue(v) {
+            if (v === null || v === undefined) return null;
+            if (Array.isArray(v)) return v.length === 0 ? null : v.map(String);
+            if (typeof v === 'boolean') return v ? true : null;
+            if (typeof v === 'number') return v;
+            const s = String(v).trim();
+            return s === '' ? null : s;
+        }
+
+        // 这些键是集合，顺序不算语义：勾选框的 DOM 顺序总与文件里的书写顺序不同，
+        // 比顺序会让"什么都没改"也被判成改动。其余列表（订阅链接、通知渠道）顺序是
+        // 用户能感知的，照旧按顺序比。
+        const UNORDERED_KEYS = { 'platforms': true };
+
+        function comparableValue(key, v) {
+            const normalized = basicValue(v);
+            if (UNORDERED_KEYS[key] && Array.isArray(normalized)) return normalized.slice().sort();
+            return normalized;
+        }
+
+        // 只返回真正改动过的键；没改就一个都不发，后端也就不会留备份。
+        function changedBasicValues() {
+            const now = collectBasic();
+            const out = {};
+            Object.keys(now).forEach(key => {
+                const after = comparableValue(key, now[key]);
+                const before = comparableValue(key, loadedValues[key] === undefined ? null : loadedValues[key]);
+                if (JSON.stringify(after) !== JSON.stringify(before)) out[key] = now[key];
+            });
+            return out;
+        }
+
+        function setSaveHint(text, kind) {
+            BASIC.saveHint.textContent = text;
+            BASIC.saveHint.className = 'save-hint' + (kind ? ' ' + kind : '');
+        }
+
+        function labelList(keys) {
+            return keys.map(k => KEY_LABELS[k] || k).join('、');
+        }
+
+        BASIC.saveMethod.addEventListener('change', syncCredPanels);
+        BASIC.speedOn.addEventListener('change', function() {
+            BASIC.minSpeed.disabled = !this.checked;
+            if (this.checked && !speedTestUrl) {
+                setSaveHint('这份配置还没有测速地址，请先在高级设置里填上 speed-test-url。', 'warn');
+            }
+        });
+
+        BASIC.saveBtn.addEventListener('click', function() {
+            const changes = changedBasicValues();
+            const keys = Object.keys(changes);
+            if (keys.length === 0) {
+                setSaveHint('没有改动，什么都没写。');
+                return;
+            }
+
+            const button = this;
+            button.disabled = true;
+            setSaveHint('保存中…');
+
+            fetch('/api/settings', {
+                method: 'POST',
+                headers: addApiKeyHeader({ 'Content-Type': 'application/json' }),
+                body: JSON.stringify(changes)
+            })
+            .then(response => {
+                if (handleUnauthorized(response, true)) throw new Error('未授权');
+                return response.json().then(body => ({ ok: response.ok, body }));
+            })
+            .then(({ ok, body }) => {
+                if (!ok) throw new Error(body.error || '保存失败');
+                const changed = body.changed || [];
+                const restart = body.needsRestart || [];
+                if (changed.length === 0) {
+                    setSaveHint('值与文件里的一致，文件没动。');
+                } else if (restart.length > 0) {
+                    setSaveHint('已保存 ' + changed.length + ' 项（' + labelList(changed) + '），已热加载；'
+                        + labelList(restart) + ' 需重启程序才生效。', 'warn');
+                } else {
+                    setSaveHint('已保存 ' + changed.length + ' 项：' + labelList(changed) + '，已热加载生效。');
+                }
+                if (body.backup) console.info('改动前的备份:', body.backup);
+                return loadConfig();
+            })
+            .catch(error => {
+                if (error.message !== '未授权') setSaveHint('保存失败: ' + error.message, 'error');
+            })
+            .finally(() => {
+                button.disabled = false;
+            });
+        });
+
+        BASIC.resetBtn.addEventListener('click', function() {
+            setSaveHint('已放弃未保存的改动。');
+            loadConfig();
+        });
+
+        // 基础设置 / 高级设置 两个视图共享一块面板。
+        function showConfigView(name) {
+            document.querySelectorAll('.cfg-tab').forEach(tab => {
+                tab.setAttribute('aria-selected', String(tab.dataset.view === name));
+            });
+            BASIC.view.hidden = name !== 'basic';
+            BASIC.foot.hidden = name !== 'basic';
+            BASIC.yamlView.hidden = name !== 'yaml';
+            BASIC.yamlActions.hidden = name !== 'yaml';
+            if (name === 'yaml') {
+                // Monaco 在隐藏容器里量到 0 尺寸，显示后重排一次。
+                requestAnimationFrame(() => { if (editor) editor.layout(); });
+            }
+        }
+
+        document.querySelectorAll('.cfg-tab').forEach(tab => {
+            tab.addEventListener('click', () => showConfigView(tab.dataset.view));
+        });
 
         // 保存配置
         document.getElementById('saveConfig').addEventListener('click', function() {
