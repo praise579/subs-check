@@ -111,6 +111,8 @@ func (app *App) newRouter() (*gin.Engine, error) {
 			// 配置相关API
 			api.GET("/config", app.getConfig)
 			api.POST("/config", app.updateConfig)
+			// 键级写回：只改请求里给出的顶层键，注释与未知键保留
+			api.POST("/settings", app.updateSettings)
 
 			// 状态相关API
 			api.GET("/status", app.getStatus)
@@ -258,7 +260,9 @@ func (app *App) authMiddleware(key string) gin.HandlerFunc {
 	}
 }
 
-// getConfig 获取配置文件内容
+// getConfig 获取配置文件内容。content 是原文，供 YAML 编辑器；values 是解析后的
+// 顶层键值，供基础设置表单回填。原文解析不了（用户手改坏了）时只给 content，
+// values 留空，让表单自己禁用，编辑器仍能救回来。
 func (app *App) getConfig(c *gin.Context) {
 	configData, err := os.ReadFile(app.configPath)
 	if err != nil {
@@ -266,8 +270,15 @@ func (app *App) getConfig(c *gin.Context) {
 		return
 	}
 
+	var values map[string]any
+	if err := yaml.Unmarshal(configData, &values); err != nil {
+		slog.Warn("配置文件解析失败，跳过表单回填", "err", err)
+		values = nil
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"content": string(configData),
+		"values":  values,
 	})
 }
 

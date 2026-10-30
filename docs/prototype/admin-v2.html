@@ -1,0 +1,856 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>subs-check · 控制面板（原型）</title>
+<style>
+:root{
+  --bg:#f5f6fa; --surface:#fff; --surface-2:#f8f9fc; --surface-hover:#f2f4f9;
+  --border:#e5e8ef; --border-strong:#d6dbe4;
+  --text:#1a1d2e; --text-2:#5f6778; --text-3:#9aa1b0;
+  --primary:#4361ee; --primary-hover:#3653dc; --primary-soft:#eef1fe; --primary-ring:rgba(67,97,238,.2);
+  --success:#2ec4b6; --success-text:#0f7c71; --success-soft:#e6f7f5;
+  --danger:#e63946; --danger-text:#c42836; --danger-soft:#fdecee;
+  --warning:#f4a261; --warning-text:#9a4d12; --warning-soft:#fdf1e6;
+  --radius:12px; --radius-sm:8px;
+  --shadow:0 1px 3px rgba(22,27,45,.06),0 1px 2px rgba(22,27,45,.03);
+  --shadow-lg:0 18px 48px rgba(22,27,45,.16);
+  --mono:"JetBrains Mono","Fira Code",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--text);font:14px/1.55 var(--font);-webkit-font-smoothing:antialiased}
+h1,h2,h3,p,ul{margin:0}
+button{font:inherit;color:inherit}
+
+/* ---------- topbar ---------- */
+.topbar{position:sticky;top:0;z-index:20;height:56px;display:flex;align-items:center;gap:16px;
+  padding:0 20px;background:var(--surface);border-bottom:1px solid var(--border)}
+.brand{display:flex;align-items:center;gap:8px;font-weight:650;letter-spacing:-.01em}
+.brand .dot{width:8px;height:8px;border-radius:50%;background:var(--success);box-shadow:0 0 0 3px var(--success-soft)}
+.brand small{color:var(--text-3);font-weight:500;font-size:12px}
+.pill{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:999px;
+  font-size:12px;font-weight:600;background:var(--success-soft);color:var(--success-text)}
+.pill.warn{background:var(--warning-soft);color:var(--warning-text)}
+.pill.err{background:var(--danger-soft);color:var(--danger-text)}
+.pill idle{background:var(--surface-hover);color:var(--text-2)}
+.tabs{display:flex;gap:2px;margin-left:12px}
+.tabs button{height:34px;padding:0 14px;border:0;border-radius:var(--radius-sm);background:transparent;
+  color:var(--text-2);font-weight:600;cursor:pointer}
+.tabs button:hover{background:var(--surface-hover);color:var(--text)}
+.tabs button[aria-selected=true]{background:var(--primary-soft);color:var(--primary)}
+.topbar .spacer{flex:1}
+.proto{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-3)}
+.select{height:30px;padding:0 8px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);
+  background:var(--surface);font-size:12px;color:var(--text)}
+.icon-btn{width:32px;height:32px;border:1px solid var(--border);border-radius:var(--radius-sm);
+  background:var(--surface);cursor:pointer;color:var(--text-2)}
+.icon-btn:hover{background:var(--surface-hover);color:var(--text)}
+
+/* ---------- layout ---------- */
+.wrap{max-width:1180px;margin:0 auto;padding:20px}
+.tab[hidden]{display:none}
+.panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow)}
+.panel + .panel{margin-top:14px}
+.panel-head{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--border);flex-wrap:wrap}
+.panel-head h2{font-size:14px;font-weight:650;white-space:nowrap}
+.panel-head .spacer{flex:1}
+.panel-head .select{width:auto;min-width:120px}
+.panel-body{padding:16px}
+.muted{color:var(--text-2)}
+.tiny{font-size:12px;color:var(--text-3)}
+
+/* ---------- buttons ---------- */
+.btn{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:var(--radius-sm);
+  border:1px solid transparent;background:var(--primary);color:#fff;font-size:13px;font-weight:600;cursor:pointer}
+.btn:hover{background:var(--primary-hover)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn.ghost{background:var(--surface);border-color:var(--border-strong);color:var(--text-2)}
+.btn.ghost:hover{background:var(--surface-hover);color:var(--text)}
+.btn.danger{background:var(--danger-soft);color:var(--danger-text)}
+.btn.danger:hover{background:#fbdde0}
+.btn.sm{height:28px;padding:0 10px;font-size:12px}
+
+/* ---------- progress ---------- */
+.round{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.round .elapsed{font-variant-numeric:tabular-nums;font-weight:650}
+.bar{height:10px;border-radius:999px;background:var(--surface-hover);overflow:hidden;position:relative}
+.bar > i{display:block;height:100%;border-radius:999px;background:var(--primary);transition:width .6s ease}
+.bar > i.ok{position:absolute;left:0;top:0;background:var(--success);opacity:.85;transition:width .6s ease}
+.bar-label{display:flex;justify-content:space-between;font-size:12px;color:var(--text-2);
+  font-variant-numeric:tabular-nums;margin-top:6px}
+
+/* ---------- pipeline stages ---------- */
+.stages{margin-top:16px;border-top:1px solid var(--border)}
+.stage{display:grid;grid-template-columns:150px 1fr;gap:12px;padding:12px 0;border-bottom:1px dashed var(--border)}
+.stage:last-child{border-bottom:0}
+.stage-name{display:flex;flex-direction:column;gap:2px;font-weight:650;font-size:13px}
+.stage-name span{font-weight:500;font-size:11.5px;color:var(--text-3)}
+.stage-main{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px}
+.num{font-variant-numeric:tabular-nums;font-weight:650}
+.reason{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:999px;
+  background:var(--surface-2);border:1px solid var(--border);font-size:12px;color:var(--text-2);
+  font-variant-numeric:tabular-nums}
+.reason b{color:var(--text);font-weight:650}
+.reason.hot{background:var(--warning-soft);border-color:#f6d9bd;color:var(--warning-text)}
+.reason.hot b{color:var(--warning-text)}
+.out{display:flex;align-items:center;gap:12px;padding:14px 0 0;border-top:1px solid var(--border);margin-top:6px}
+.out .big{font-size:20px;font-weight:700;font-variant-numeric:tabular-nums}
+
+/* ---------- table ---------- */
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--border);white-space:nowrap}
+th{font-size:11.5px;text-transform:uppercase;letter-spacing:.03em;color:var(--text-3);font-weight:700}
+tbody tr:hover{background:var(--surface-2)}
+td.mono{font-family:var(--mono);font-size:12px}
+.tag{display:inline-block;margin-right:4px;padding:1px 6px;border-radius:5px;background:var(--primary-soft);
+  color:var(--primary);font-size:11.5px;font-weight:600}
+.tag.g{background:var(--success-soft);color:var(--success-text)}
+.tag.w{background:var(--warning-soft);color:var(--warning-text)}
+.speed{font-variant-numeric:tabular-nums;font-weight:650}
+
+/* ---------- forms ---------- */
+.cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;align-items:start}
+@media (max-width:980px){.cols{grid-template-columns:minmax(0,1fr)} .topbar{height:auto;padding:10px 14px;flex-wrap:wrap} .tabs{order:3;width:100%;margin:0}}
+.field{display:grid;grid-template-columns:132px 1fr;gap:8px 12px;align-items:center;padding:8px 0}
+.field > label{font-size:13px;color:var(--text-2);font-weight:600}
+.field .stack{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.field .hint{grid-column:2;font-size:12px;color:var(--text-3)}
+.field .hint.bad{color:var(--danger-text);font-weight:600}
+.field .hint.warn{color:var(--warning-text)}
+input[type=text],input[type=password],input[type=number],select{height:32px;padding:0 10px;border-radius:var(--radius-sm);
+  border:1px solid var(--border-strong);background:var(--surface);font:inherit;color:var(--text);width:100%;min-width:0}
+input:focus,select:focus{outline:0;border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-ring)}
+input[type=number]{width:88px}
+input.bad{border-color:var(--danger);box-shadow:0 0 0 3px rgba(230,57,70,.12)}
+input.warn{border-color:var(--warning)}
+.suffix{font-size:12px;color:var(--text-3)}
+.switch{display:inline-flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;font-weight:600}
+.switch input{appearance:none;width:36px;height:20px;border-radius:999px;background:var(--border-strong);
+  position:relative;cursor:pointer;transition:background .2s}
+.switch input:checked{background:var(--primary)}
+.switch input::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;
+  background:#fff;transition:transform .2s}
+.switch input:checked::after{transform:translateX(16px)}
+.checks{display:flex;flex-wrap:wrap;gap:6px}
+.checks label{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;
+  border:1px solid var(--border);background:var(--surface-2);font-size:12.5px;cursor:pointer}
+.checks input{accent-color:var(--primary)}
+.checks label:has(input:checked){background:var(--primary-soft);border-color:#c9d3fb;color:var(--primary);font-weight:600}
+.sub-list{display:flex;flex-direction:column;gap:6px;grid-column:2}
+.sub-row{display:flex;gap:6px}
+.sub-row input{flex:1;font-family:var(--mono);font-size:12px}
+.divider{height:1px;background:var(--border);margin:10px 0 2px}
+.foot{display:flex;align-items:center;gap:10px;padding:12px 16px;border-top:1px solid var(--border);background:var(--surface-2);
+  border-radius:0 0 var(--radius) var(--radius);flex-wrap:wrap}
+.foot .spacer{flex:1}
+
+/* ---------- code ---------- */
+pre.yaml{margin:0;padding:14px 16px;border-radius:0 0 var(--radius) var(--radius);overflow:auto;max-height:520px;
+  background:#1e2233;color:#dfe3f2;font-family:var(--mono);font-size:12px;line-height:1.6}
+pre.yaml .c{color:#7d86a8}
+pre.yaml .k{color:#8fd3ff}
+pre.yaml .v{color:#ffd580}
+
+/* ---------- misc blocks ---------- */
+.steps{display:flex;flex-direction:column;gap:14px;padding:8px 0}
+.step{display:grid;grid-template-columns:26px 1fr auto;gap:12px;align-items:center}
+.step .n{width:26px;height:26px;border-radius:50%;background:var(--primary-soft);color:var(--primary);
+  display:grid;place-items:center;font-weight:700;font-size:12px}
+.step .t{font-weight:600}
+.step .d{font-size:12px;color:var(--text-2)}
+.banner{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:var(--radius-sm);
+  background:var(--danger-soft);color:var(--danger-text);font-size:13px;margin-bottom:14px}
+.linkcard{display:grid;grid-template-columns:120px 1fr auto;gap:10px;align-items:center;padding:9px 0;
+  border-bottom:1px dashed var(--border)}
+.linkcard:last-of-type{border-bottom:0}
+.linkcard .name{font-weight:650;font-size:13px}
+.linkcard .url{font-family:var(--mono);font-size:12px;color:var(--text-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+details.drawer{border-top:1px solid var(--border)}
+details.drawer summary{cursor:pointer;padding:10px 16px;font-size:12.5px;color:var(--text-2);font-weight:600;
+  list-style:none;display:flex;align-items:center;gap:8px}
+details.drawer summary::-webkit-details-marker{display:none}
+details.drawer summary::before{content:"▸";color:var(--text-3)}
+details.drawer[open] summary::before{content:"▾"}
+.logs{margin:0;padding:0 16px 14px;font-family:var(--mono);font-size:11.5px;line-height:1.75;color:var(--text-2);
+  max-height:220px;overflow:auto;white-space:pre-wrap}
+.logs .w{color:var(--warning-text)}
+.logs .e{color:var(--danger-text)}
+#toast{position:fixed;left:50%;bottom:26px;transform:translate(-50%,20px);opacity:0;pointer-events:none;
+  background:#1e2233;color:#fff;padding:10px 16px;border-radius:var(--radius-sm);font-size:13px;
+  box-shadow:var(--shadow-lg);transition:.25s;z-index:50;max-width:90vw}
+#toast.show{opacity:1;transform:translate(-50%,0)}
+.note{font-size:12px;color:var(--text-3);margin-top:8px}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand"><span class="dot"></span>subs-check <small>v1.6.2</small></div>
+  <span class="pill" id="statusPill">● 运行中 · 已跑 6m12s</span>
+  <nav class="tabs" role="tablist">
+    <button role="tab" aria-selected="true" data-tab="overview">概览</button>
+    <button role="tab" aria-selected="false" data-tab="config">配置</button>
+    <button role="tab" aria-selected="false" data-tab="results">结果</button>
+  </nav>
+  <div class="spacer"></div>
+  <div class="proto">
+    <span>原型状态</span>
+    <select class="select" id="stateSwitch">
+      <option value="running">运行中</option>
+      <option value="done">已完成</option>
+      <option value="idle">未检测</option>
+      <option value="error">出错</option>
+    </select>
+  </div>
+  <button class="icon-btn" title="面板地址与密钥（原型里不实现）">⚙</button>
+</header>
+
+<main class="wrap">
+
+  <!-- ============ 概览 ============ -->
+  <section class="tab" id="tab-overview">
+
+    <!-- 未检测：引导 -->
+    <div class="panel" data-show="idle">
+      <div class="panel-body">
+        <h2 style="font-size:16px;margin-bottom:6px">还没有检测结果</h2>
+        <p class="muted" style="margin-bottom:16px">三步就能拿到可以用的订阅链接。</p>
+        <div class="steps">
+          <div class="step">
+            <div class="n">1</div>
+            <div><div class="t">确认订阅链接已填</div><div class="d">当前 3 条，其中 1 条来自远程清单</div></div>
+            <button class="btn ghost sm" data-goto="config">去配置</button>
+          </div>
+          <div class="step">
+            <div class="n">2</div>
+            <div><div class="t">点「立即检测」</div><div class="d">首次运行通常 10–20 分钟，取决于节点数</div></div>
+            <button class="btn" id="idleStart">立即检测</button>
+          </div>
+          <div class="step">
+            <div class="n">3</div>
+            <div><div class="t">完成后在这里拿订阅链接</div><div class="d">结果 → 你的订阅链接，复制粘贴到 Clash</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 出错 -->
+    <div class="panel" data-show="error">
+      <div class="panel-body">
+        <div class="banner">
+          <b>本轮在拉订阅阶段失败</b>
+          <span>4 条订阅全部拉取失败：3 条超时、1 条返回 404。已保留上一轮结果，未覆盖输出文件。</span>
+        </div>
+        <div class="step" style="display:grid">
+          <div></div>
+          <div class="d">先检查「拉取代理」是否可用，或者把失效的订阅删掉再重试。</div>
+          <div style="display:flex;gap:8px">
+            <button class="btn ghost sm" data-goto="config">去配置</button>
+            <button class="btn sm">重试</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 运行中 / 已完成：漏斗 -->
+    <div class="panel" data-show="running done">
+      <div class="panel-head">
+        <h2>本轮检测</h2>
+        <span class="pill" data-show="running">进行中</span>
+        <span class="pill" data-show="done">已完成</span>
+        <div class="spacer"></div>
+        <button class="btn ghost sm" data-show="running">停止</button>
+        <button class="btn sm" data-show="done">立即检测</button>
+      </div>
+      <div class="panel-body">
+        <div class="round">
+          <span class="elapsed" id="elapsed">6m12s</span>
+          <span class="muted tiny" id="eta">上一轮用了 14 分钟 · 预计还需 8 分钟</span>
+        </div>
+        <div class="bar">
+          <i class="ok" style="width:1.7%"></i>
+          <i style="width:42%"></i>
+        </div>
+        <div class="bar-label"><span>测活 9929 / 23618</span><span>42%</span></div>
+
+        <div class="stages">
+          <div class="stage">
+            <div class="stage-name">测活<span>存活 / 输入</span></div>
+            <div class="stage-main">
+              <span class="num">402 / 23618</span>
+              <span class="reason hot">超时 <b>21004</b></span>
+              <span class="reason">连接失败 <b>1872</b></span>
+              <span class="reason">TLS 失败 <b>340</b></span>
+            </div>
+          </div>
+          <div class="stage">
+            <div class="stage-name">解锁检测<span>通过 / 存活</span></div>
+            <div class="stage-main">
+              <span class="num">389 / 402</span>
+              <span class="reason">不支持 <b>13</b></span>
+            </div>
+          </div>
+          <div class="stage">
+            <div class="stage-name">名称筛选<span>进入 / 通过</span></div>
+            <div class="stage-main">
+              <span class="num">210 / 389</span>
+              <span class="reason">被筛选 <b>179</b></span>
+            </div>
+          </div>
+          <div class="stage">
+            <div class="stage-name">测速<span>达标 / 进入</span></div>
+            <div class="stage-main">
+              <span class="num">6 / 210</span>
+              <span class="reason hot">测速不达标 <b>204</b></span>
+              <span class="tiny">平均 380 KB/s，门槛 512 KB/s</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="out">
+          <span class="big">6</span>
+          <span class="muted">个节点通过全部阶段</span>
+          <span class="spacer" style="flex:1"></span>
+          <button class="btn ghost" data-goto="results">查看结果</button>
+        </div>
+      </div>
+
+      <details class="drawer" id="logDrawer">
+        <summary>运行日志（最近 100 行）<span class="tiny">· 出错时自动展开</span></summary>
+        <pre class="logs">2026-10-29 04:12:48 INF 订阅链接数量 本地=3 远程=1 总计=4
+2026-10-29 04:13:31 INF 获取节点数量: 41099
+2026-10-29 04:13:31 INF 去重后节点数量: 23618
+2026-10-29 04:13:31 INF 启动流水线: 输入=23618, 并发(测活/媒体/测速)=50/20/20
+2026-10-29 04:15:31 INF 流水线: 测活 1750/23618 (存活:66) | 媒体 62/66 | 测速 通过:4
+2026-10-29 04:17:31 <span class="w">WRN</span> 流水线: 测活 3613/23618 (存活:84) | 媒体 79/84 | 测速 通过:5
+2026-10-29 04:19:31 INF 流水线: 测活 5474/23618 (存活:99) | 媒体 98/99 | 测速 通过:6
+2026-10-29 04:21:31 <span class="e">ERR</span> 订阅拉取失败 sub=example.com/api 重试 3/3 后放弃: context deadline exceeded
+2026-10-29 04:23:31 INF 保存成功 method=local file=output/mihomo.yaml</pre>
+      </details>
+    </div>
+
+    <!-- 按订阅归因 -->
+    <div class="panel" data-show="running done">
+      <div class="panel-head">
+        <h2>哪个订阅在拖后腿</h2>
+        <div class="spacer"></div>
+        <span class="tiny">按订阅备注归因 · 本轮</span>
+      </div>
+      <div class="panel-body" style="padding-top:6px">
+        <table>
+          <thead><tr><th>订阅</th><th>输入节点</th><th>失败</th><th>失败率</th><th>主要失败原因</th><th></th></tr></thead>
+          <tbody>
+            <tr><td class="mono">free-nodes.txt</td><td>8300</td><td>8210</td><td><span class="tag w">99%</span></td><td>超时</td><td><button class="btn ghost sm">去删掉</button></td></tr>
+            <tr><td class="mono">v2rayshare</td><td>6412</td><td>6400</td><td><span class="tag w">99.8%</span></td><td>超时</td><td><button class="btn ghost sm">去删掉</button></td></tr>
+            <tr><td class="mono">clash_sub.yaml</td><td>5006</td><td>5000</td><td><span class="tag w">99.9%</span></td><td>连接失败</td><td><button class="btn ghost sm">去删掉</button></td></tr>
+            <tr><td class="mono">nodes.meta.yml</td><td>3900</td><td>3606</td><td><span class="tag w">92%</span></td><td>TLS 失败</td><td><button class="btn ghost sm">去删掉</button></td></tr>
+          </tbody>
+        </table>
+        <p class="note">存活 402 + 失败 23216 = 输入 23618，四个订阅之和与总数一致。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 配置 ============ -->
+  <section class="tab" id="tab-config" hidden>
+    <div class="cols">
+      <!-- 基础设置 -->
+      <div class="panel">
+        <div class="panel-head">
+          <h2>基础设置</h2>
+          <div class="spacer"></div>
+          <span class="tiny">改完点保存，只改下面这些键</span>
+        </div>
+        <div class="panel-body">
+
+          <div class="field">
+            <label>订阅链接</label>
+            <div class="sub-list" id="subList">
+              <div class="sub-row"><input type="text" data-sub-url value="https://raw.githubusercontent.com/ripaojiedian/freenode/main/clash"><button class="btn ghost sm" title="删除">✕</button></div>
+              <div class="sub-row"><input type="text" data-sub-url value="https://raw.githubusercontent.com/Barabama/FreeNodes/main/nodes/v2rayshare.txt"><button class="btn ghost sm" title="删除">✕</button></div>
+              <div class="sub-row"><input type="text" data-sub-url value="https://raw.githubusercontent.com/mahdibland/SSAggregator/master/sub/sub_merge_yaml.yml"><button class="btn ghost sm" title="删除">✕</button></div>
+              <button class="btn ghost sm" style="align-self:flex-start" id="addSub">+ 添加订阅</button>
+            </div>
+            <div class="hint">可以粘贴多条；一条都拉不到时本轮会直接失败，并保留上一轮结果。</div>
+          </div>
+
+          <div class="field">
+            <label for="interval">检测间隔</label>
+            <div class="stack"><input type="number" id="interval" value="120"><span class="suffix">分钟</span></div>
+            <div class="hint">上一轮用了 14 分钟；间隔小于耗时会排队等待，不会并发跑两轮。</div>
+          </div>
+
+          <div class="field">
+            <label for="concurrent">并发</label>
+            <div class="stack">
+              <input type="number" id="concurrent" value="50">
+              <span class="suffix">测活线程</span>
+              <span class="suffix">·</span>
+              <span class="suffix">超时</span>
+              <input type="number" id="timeout" value="5000" style="width:88px">
+              <span class="suffix">毫秒</span>
+            </div>
+            <div class="hint">并发越高越快，也越容易被机场限速；50 是安全值。</div>
+          </div>
+
+          <div class="field">
+            <label>测速</label>
+            <div class="stack">
+              <label class="switch"><input type="checkbox" id="speedOn" checked>开启</label>
+              <span class="suffix">最低速度</span>
+              <input type="number" id="minSpeed" value="512" style="width:88px">
+              <span class="suffix">KB/s</span>
+            </div>
+            <div class="hint">关掉测速后本轮快很多，但输出里没有速度标签，也无法按速度筛节点。</div>
+          </div>
+
+          <div class="field">
+            <label>解锁检测</label>
+            <div class="stack"><label class="switch"><input type="checkbox" id="mediaOn" checked>开启</label></div>
+            <div class="checks" style="grid-column:2">
+              <label><input type="checkbox" data-platform="netflix" checked>Netflix</label>
+              <label><input type="checkbox" data-platform="youtube" checked>YouTube</label>
+              <label><input type="checkbox" data-platform="disney" checked>Disney+</label>
+              <label><input type="checkbox" data-platform="openai" checked>OpenAI</label>
+              <label><input type="checkbox" data-platform="gemini" checked>Gemini</label>
+              <label><input type="checkbox" data-platform="claude">Claude</label>
+              <label><input type="checkbox" data-platform="spotify">Spotify</label>
+              <label><input type="checkbox" data-platform="tiktok">TikTok</label>
+              <label><input type="checkbox" data-platform="iprisk" checked>IP 风险</label>
+            </div>
+            <div class="hint">勾选越多越慢；IP 风险会给出百分比，可用于名称筛选。</div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="field">
+            <label for="saveMethod">结果保存到</label>
+            <div class="stack">
+              <select id="saveMethod">
+                <option value="local">本地目录</option>
+                <option value="r2">Cloudflare R2（经 Worker 上传）</option>
+                <option value="gist">GitHub Gist</option>
+                <option value="webdav">WebDAV</option>
+                <option value="s3">S3 / MinIO</option>
+              </select>
+            </div>
+            <div class="hint" data-cred="local">输出目录 <input type="text" id="outputDir" value="output" style="width:170px;display:inline-block">，同时会在这里起订阅服务。</div>
+            <div class="hint" data-cred="r2" hidden>
+              上传地址 <input type="text" id="workerUrl" value="https://example.workers.dev" style="width:230px;display:inline-block">
+              令牌 <input type="password" value="" placeholder="worker token" style="width:150px;display:inline-block">
+              <br>R2 走 Worker 中转，不需要填 R2 的 Access Key / Secret Key。
+            </div>
+            <div class="hint" data-cred="gist" hidden>
+              Gist ID <input type="text" value="" placeholder="留空会自动创建" style="width:200px;display:inline-block">
+              Token <input type="password" value="" placeholder="ghp_..." style="width:170px;display:inline-block">
+            </div>
+            <div class="hint" data-cred="webdav" hidden>
+              地址 <input type="text" value="https://example.com/dav/" style="width:220px;display:inline-block">
+              账号 <input type="text" value="" style="width:110px;display:inline-block">
+              密码 <input type="password" value="" style="width:110px;display:inline-block">
+            </div>
+            <div class="hint" data-cred="s3" hidden>
+              Endpoint <input type="text" value="127.0.0.1:9000" style="width:160px;display:inline-block">
+              Access ID <input type="text" value="" style="width:120px;display:inline-block">
+              Secret <input type="password" value="" style="width:120px;display:inline-block">
+              <br>Bucket <input type="text" value="public" style="width:120px;display:inline-block">
+              SSL <label class="switch" style="font-weight:500"><input type="checkbox">开启</label>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="field">
+            <label>通知</label>
+            <div class="stack"><label class="switch"><input type="checkbox" id="notifyOn">开启</label></div>
+            <div class="stack" data-notify hidden style="grid-column:2">
+              <span class="suffix">渠道</span>
+              <select id="channel" style="width:170px">
+                <option value="tgram">Telegram</option>
+                <option value="dingtalk">钉钉</option>
+                <option value="other">其他（手填）</option>
+              </select>
+            </div>
+            <div class="hint" id="chTgram" data-ch="tgram" hidden>
+              Bot Token <input type="text" id="tgToken" value="" placeholder="123456:AAH..." style="width:210px;display:inline-block">
+              Chat ID <input type="text" id="tgChat" value="" placeholder="-1002149239223" style="width:150px;display:inline-block">
+              <button class="btn ghost sm" id="testNotify">发送测试消息</button>
+              <br><span class="tiny" id="tgPreview">生成 tgram://（填完上面两项）</span>
+            </div>
+            <div class="hint" data-ch="dingtalk" hidden>
+              Secret <input type="text" value="" placeholder="SEC..." style="width:170px;display:inline-block">
+              ApiKey <input type="text" value="" placeholder="ding..." style="width:170px;display:inline-block">
+            </div>
+            <div class="hint" data-ch="other" hidden>
+              原始地址 <input type="text" value="" placeholder="tgram://… 或 dingtalk://…" style="width:100%;display:inline-block">
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="field">
+            <label for="port">面板端口</label>
+            <div class="stack">
+              <input type="text" id="port" value=":8199" style="width:110px">
+              <span class="suffix">API 密钥</span>
+              <input type="password" value="8cNyGMVD" style="width:120px">
+              <button class="btn ghost sm">重新生成</button>
+            </div>
+            <div class="hint">改端口需要重启程序才生效；改密钥立即生效。</div>
+          </div>
+        </div>
+
+        <div class="foot">
+          <button class="btn" id="saveBtn">保存</button>
+          <button class="btn ghost sm" id="reloadBtn">放弃修改</button>
+          <div class="spacer"></div>
+          <span class="tiny" id="saveHint">上次保存：10-29 04:10 · 3 项。</span>
+        </div>
+      </div>
+
+      <!-- 高级设置 -->
+      <div class="panel">
+        <div class="panel-head">
+          <h2>高级设置（YAML）</h2>
+          <div class="spacer"></div>
+          <button class="btn ghost sm" id="toggleYaml">隐藏</button>
+        </div>
+        <pre class="yaml" id="yaml"></pre>
+        <div class="foot">
+          <span class="tiny">同一份 <code>config/config.yaml</code>。注释和表单不认识的键都会原样保留。</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 结果 ============ -->
+  <section class="tab" id="tab-results" hidden>
+
+    <div class="panel" data-show="idle">
+      <div class="panel-body" style="text-align:center;padding:40px 16px">
+        <h2 style="font-size:16px;margin-bottom:6px">还没有结果</h2>
+        <p class="muted" style="margin-bottom:16px">点一次检测，这里有产出。</p>
+        <button class="btn" data-goto="overview">回到概览</button>
+      </div>
+    </div>
+
+    <div data-show="running done error">
+      <div class="panel">
+        <div class="panel-head">
+          <h2>你的订阅链接</h2>
+          <div class="spacer"></div>
+          <span class="tiny">来自上一轮：10-29 04:26 · 6 个节点</span>
+        </div>
+        <div class="panel-body">
+          <div class="linkcard">
+            <span class="name">Clash / Mihomo</span>
+            <span class="url">http://192.168.1.9:8199/mihomo.yaml</span>
+            <button class="btn ghost sm" data-copy="http://192.168.1.9:8199/mihomo.yaml">复制</button>
+          </div>
+          <div class="linkcard">
+            <span class="name">通用 YAML</span>
+            <span class="url">http://192.168.1.9:8199/all.yaml</span>
+            <button class="btn ghost sm" data-copy="http://192.168.1.9:8199/all.yaml">复制</button>
+          </div>
+          <div class="linkcard">
+            <span class="name">Base64</span>
+            <span class="url">http://192.168.1.9:8199/base64.txt</span>
+            <button class="btn ghost sm" data-copy="http://192.168.1.9:8199/base64.txt">复制</button>
+          </div>
+          <div class="linkcard">
+            <span class="name">sing-box</span>
+            <span class="url">http://192.168.1.9:8199/export/sing-box</span>
+            <button class="btn ghost sm" data-copy="http://192.168.1.9:8199/export/sing-box">复制</button>
+          </div>
+
+          <div class="divider"></div>
+          <div class="steps" style="gap:8px">
+            <div class="step"><div class="n">1</div><div class="d">复制上面的链接</div></div>
+            <div class="step"><div class="n">2</div><div class="d">打开 Clash / Mihomo → 订阅 → 添加</div></div>
+            <div class="step"><div class="n">3</div><div class="d">粘贴并更新，就能选节点了</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <h2>节点明细</h2>
+          <div class="spacer"></div>
+          <select class="select"><option>全部地区</option></select>
+          <select class="select"><option>全部协议</option></select>
+          <select class="select"><option>全部解锁</option></select>
+        </div>
+        <div class="panel-body" style="padding:0 16px 4px">
+          <table>
+            <thead>
+              <tr><th>名称</th><th>类型</th><th>服务器</th><th>延迟</th><th>流媒体</th><th>速度</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>🇭🇰 香港01</td><td class="mono">vless</td><td class="mono">hk1.example.com</td><td>42 ms</td><td><span class="tag g">NF</span><span class="tag g">GPT⁺</span><span class="tag">8%</span></td><td class="speed">12.4 MB/s</td></tr>
+              <tr><td>🇸🇬 新加坡03</td><td class="mono">vmess</td><td class="mono">sg3.example.com</td><td>78 ms</td><td><span class="tag g">NF</span><span class="tag">GPT</span><span class="tag">12%</span></td><td class="speed">8.1 MB/s</td></tr>
+              <tr><td>🇯🇵 日本02</td><td class="mono">ss</td><td class="mono">jp2.example.com</td><td>55 ms</td><td><span class="tag g">NF</span><span class="tag g">D+</span><span class="tag">5%</span></td><td class="speed">9.7 MB/s</td></tr>
+              <tr><td>🇺🇸 美国07</td><td class="mono">trojan</td><td class="mono">us7.example.com</td><td>132 ms</td><td><span class="tag g">GPT⁺</span><span class="tag">YT</span><span class="tag">21%</span></td><td class="speed">6.2 MB/s</td></tr>
+              <tr><td>🇰🇷 韩国05</td><td class="mono">vless</td><td class="mono">kr5.example.com</td><td>61 ms</td><td><span class="tag g">NF</span><span class="tag g">GM</span><span class="tag">9%</span></td><td class="speed">10.3 MB/s</td></tr>
+              <tr><td>🇩🇪 德国04</td><td class="mono">hysteria2</td><td class="mono">de4.example.com</td><td>187 ms</td><td><span class="tag">YT</span><span class="tag">33%</span></td><td class="speed">4.8 MB/s</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div id="toast"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  var $ = function (s, r) { return (r || document).querySelector(s); };
+  var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
+
+  /* ---------- toast ---------- */
+  var toastTimer;
+  function toast(msg) {
+    var el = $("#toast");
+    el.textContent = msg;
+    el.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { el.classList.remove("show"); }, 2600);
+  }
+
+  /* ---------- tabs ---------- */
+  function showTab(name) {
+    $$(".tabs button").forEach(function (b) {
+      b.setAttribute("aria-selected", String(b.dataset.tab === name));
+    });
+    ["overview", "config", "results"].forEach(function (t) {
+      $("#tab-" + t).hidden = t !== name;
+    });
+  }
+  $$(".tabs button").forEach(function (b) {
+    b.addEventListener("click", function () {
+      showTab(b.dataset.tab);
+      history.replaceState(null, "", "#" + b.dataset.tab);
+    });
+  });
+  $$("[data-goto]").forEach(function (b) {
+    b.addEventListener("click", function () { showTab(b.dataset.goto); });
+  });
+
+  /* ---------- state switching (prototype only) ---------- */
+  var stateEls = $$("[data-show]");
+  function setState(state) {
+    stateEls.forEach(function (el) {
+      var states = el.dataset.show.split(" ");
+      el.hidden = states.indexOf(state) === -1;
+    });
+    var pill = $("#statusPill");
+    pill.className = "pill";
+    if (state === "running") { pill.textContent = "● 运行中 · 已跑 6m12s"; $("#elapsed").textContent = "6m12s"; $("#eta").textContent = "上一轮用了 14 分钟 · 预计还需 8 分钟"; }
+    if (state === "done") { pill.className = "pill"; pill.textContent = "✓ 已完成 · 10-29 04:26"; $("#elapsed").textContent = "14m02s"; $("#eta").textContent = "上一轮用了 14 分钟 · 产出 6 个节点"; }
+    if (state === "idle") { pill.className = "pill idle"; pill.textContent = "○ 等待首次检测"; }
+    if (state === "error") { pill.className = "pill err"; pill.textContent = "! 本轮失败 · 拉订阅超时"; }
+  }
+  $("#stateSwitch").addEventListener("change", function (e) { setState(e.target.value); });
+  $("#idleStart").addEventListener("click", function () {
+    $("#stateSwitch").value = "running";
+    setState("running");
+    toast("已触发检测（原型不会真的跑）");
+  });
+
+  /* ---------- save method -> credential block ---------- */
+  function syncCreds() {
+    var v = $("#saveMethod").value;
+    $$("[data-cred]").forEach(function (el) { el.hidden = el.dataset.cred !== v; });
+  }
+  $("#saveMethod").addEventListener("change", function () { syncCreds(); renderYaml(); });
+
+  /* ---------- notify ---------- */
+  $("#notifyOn").addEventListener("change", function (e) {
+    $$("[data-notify]").forEach(function (el) { el.hidden = !e.target.checked; });
+    syncChannel();
+  });
+  function syncChannel() {
+    var ch = $("#channel").value;
+    var on = $("#notifyOn").checked;
+    $$("[data-ch]").forEach(function (el) { el.hidden = !on || el.dataset.ch !== ch; });
+    updateTgPreview();
+  }
+  $("#channel").addEventListener("change", syncChannel);
+  function tgUrl() {
+    var t = $("#tgToken").value.trim(), c = $("#tgChat").value.trim();
+    return (t && c) ? "tgram://" + t + "/" + c : "";
+  }
+  function updateTgPreview() {
+    var u = tgUrl();
+    $("#tgPreview").textContent = u ? "生成 " + u : "生成 tgram://（填完上面两项）";
+  }
+  ["#tgToken", "#tgChat"].forEach(function (s) {
+    $(s).addEventListener("input", function () { updateTgPreview(); renderYaml(); });
+  });
+  $("#testNotify").addEventListener("click", function () {
+    toast(tgUrl() ? "已发送（原型不发真实请求）" : "先填 Bot Token 和 Chat ID");
+  });
+
+  /* ---------- subscriptions ---------- */
+  $("#addSub").addEventListener("click", function () {
+    var row = document.createElement("div");
+    row.className = "sub-row";
+    row.innerHTML = '<input type="text" data-sub-url value="" placeholder="https://…/sub"><button class="btn ghost sm" title="删除">✕</button>';
+    $("#subList").insertBefore(row, this);
+    row.querySelector("input").focus();
+    renderYaml();
+  });
+  $("#subList").addEventListener("click", function (e) {
+    if (e.target.tagName !== "BUTTON") return;
+    var rows = $$(".sub-row", $("#subList"));
+    if (rows.length === 1) { toast("至少保留一条订阅"); return; }
+    e.target.closest(".sub-row").remove();
+    renderYaml();
+  });
+  $("#subList").addEventListener("input", renderYaml);
+
+  /* ---------- yaml preview: exactly what the form owns ---------- */
+  function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;"); }
+  function renderYaml() {
+    var subs = $$("[data-sub-url]").map(function (i) { return i.value.trim(); }).filter(Boolean);
+    var platforms = $$("[data-platform]:checked").map(function (i) { return i.dataset.platform; });
+    var method = $("#saveMethod").value;
+    var lines = [];
+    function comment(t) { lines.push('<span class="c"># ' + esc(t) + "</span>"); }
+    function kv(k, v) { lines.push('<span class="k">' + k + "</span>: " + '<span class="v">' + esc(v) + "</span>"); }
+
+    comment("以下键由基础设置表单托管，保存时只改写这些行");
+    kv("check-interval", $("#interval").value || "0");
+    kv("concurrent", $("#concurrent").value || "0");
+    kv("timeout", $("#timeout").value || "0");
+    kv("media-check", $("#mediaOn").checked);
+    lines.push('<span class="k">platforms</span>:');
+    platforms.forEach(function (p) { lines.push("  - " + p); });
+    kv("min-speed", $("#speedOn").checked ? ($("#minSpeed").value || "0") : "0");
+    kv("save-method", method);
+    kv("output-dir", '"' + ($("#outputDir").value || "") + '"');
+    lines.push('<span class="k">recipient-url</span>:');
+    var u = $("#notifyOn").checked ? (($("#channel").value === "tgram") ? tgUrl() : "") : "";
+    if (u) { lines.push("  - " + esc(u)); } else { lines.push('  <span class="c"># 未配置</span>'); }
+    kv("listen-port", '"' + ($("#port").value || "") + '"');
+
+    lines.push("");
+    comment("下面这些键表单不碰：注释、顺序、未知键全部原样保留");
+    lines.push('<span class="k">sub-urls</span>:');
+    subs.forEach(function (s) { lines.push("  - " + esc(s)); });
+    lines.push('<span class="k">sub-urls-remote</span>:');
+    lines.push("  - https://raw.githubusercontent.com/beck-8/sub-urls/refs/heads/main/小而美.txt");
+    lines.push('<span class="c"># 是否打乱节点的测试顺序</span>');
+    kv("shuffle-test-order", "true");
+    lines.push('<span class="c"># 自定义键（程序不认识，但绝不丢）</span>');
+    kv("my-own-note", "手工保留");
+    $("#yaml").innerHTML = lines.join("\n");
+  }
+  ["#interval", "#concurrent", "#timeout", "#minSpeed", "#outputDir", "#port"].forEach(function (s) {
+    $(s).addEventListener("input", renderYaml);
+  });
+  $("#speedOn").addEventListener("change", renderYaml);
+  $("#mediaOn").addEventListener("change", renderYaml);
+  $$("[data-platform]").forEach(function (i) { i.addEventListener("change", renderYaml); });
+
+  /* ---------- yaml panel toggle ---------- */
+  $("#toggleYaml").addEventListener("click", function () {
+    var pre = $("#yaml");
+    var hidden = pre.style.display === "none";
+    pre.style.display = hidden ? "" : "none";
+    this.textContent = hidden ? "隐藏" : "显示";
+  });
+
+  /* ---------- validation ---------- */
+  var saveBtn = $("#saveBtn");
+  function validate() {
+    var errs = [], warns = [];
+    var port = $("#port").value.trim();
+    var portBad = !/^(:|[\d.]+:)\d{2,5}$/.test(port);
+    $("#port").classList.toggle("bad", portBad);
+    if (portBad) errs.push("面板端口要写成 :8199 或 127.0.0.1:8199");
+
+    var needTg = $("#notifyOn").checked && $("#channel").value === "tgram";
+    var tgOk = !!tgUrl();
+    $("#tgToken").classList.toggle("bad", needTg && !tgOk);
+    if (needTg && !tgOk) errs.push("通知已开启，Telegram 的 Bot Token 与 Chat ID 都必填");
+
+    var n = parseInt($("#concurrent").value, 10);
+    var conWarn = !(n >= 1 && n <= 500);
+    $("#concurrent").classList.toggle("warn", conWarn);
+    if (conWarn) warns.push("并发建议 1–500，当前 " + ($("#concurrent").value || "空"));
+
+    var subs = $$("[data-sub-url]").map(function (i) { return i.value.trim(); }).filter(Boolean);
+    var badSub = subs.filter(function (s) { return !/^https?:\/\/\S+$/.test(s); });
+    if (badSub.length) errs.push(badSub.length + " 条订阅链接格式不对");
+
+    saveBtn.disabled = errs.length > 0;
+    var hint = $("#saveHint");
+    if (errs.length) {
+      hint.innerHTML = '<span style="color:var(--danger-text);font-weight:600">' + errs.join("；") + "</span>";
+    } else if (warns.length) {
+      hint.innerHTML = '<span style="color:var(--warning-text)">' + warns.join("；") + "（可以保存）</span>";
+    } else {
+      hint.textContent = "上次保存：10-29 04:10 · 3 项。";
+    }
+  }
+  $$("#tab-config input, #tab-config select").forEach(function (el) {
+    el.addEventListener("input", validate);
+    el.addEventListener("change", validate);
+  });
+
+  saveBtn.addEventListener("click", function () {
+    var restart = ($("#port").value.trim() !== ":8199");
+    toast(restart ? "已保存 · 3 项已生效，1 项需重启（面板端口）" : "已保存 · 3 项已生效");
+  });
+  $("#reloadBtn").addEventListener("click", function () { toast("已放弃修改，重新读取 config.yaml"); });
+
+  /* ---------- copy ---------- */
+  $$("[data-copy]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      var text = b.dataset.copy;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(function () { toast("已复制"); },
+          function () { toast("复制失败，请手动选择"); });
+      } else { toast("已复制：" + text); }
+    });
+  });
+
+  /* ---------- boot ---------- */
+  syncCreds();
+  syncChannel();
+  renderYaml();
+  validate();
+
+  // 原型直链：#config / #results 直接落到对应 tab；?state=idle|running|done|error 指定初始状态
+  var params = new URLSearchParams(location.search);
+  var initial = params.get("state");
+  if (["idle", "running", "done", "error"].indexOf(initial) !== -1) {
+    $("#stateSwitch").value = initial;
+    setState(initial);
+  } else {
+    setState("running");
+  }
+  var hash = (location.hash || "").replace("#", "");
+  if (["overview", "config", "results"].indexOf(hash) !== -1) { showTab(hash); }
+
+  // ?demo=invalid：预置一组非法值，看校验态（端口格式错 + 通知缺 token + 并发偏高）
+  if (params.get("demo") === "invalid") {
+    $("#notifyOn").checked = true;
+    $$("[data-notify]").forEach(function (el) { el.hidden = false; });
+    $("#port").value = "8199";
+    $("#concurrent").value = "900";
+    syncChannel();
+    renderYaml();
+    validate();
+    showTab("config");
+  }
+})();
+</script>
+</body>
+</html>
